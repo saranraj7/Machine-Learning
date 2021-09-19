@@ -1,0 +1,193 @@
+import seaborn as sns
+import matplotlib.pyplot as plt
+import pandas as pd
+import math
+
+data= pd.read_csv("train.csv") 
+#data.head()  """To look first five rows of value in the Dataset"""
+
+data.drop(['Cabin','Ticket','PassengerId','Name'],axis=1 ,inplace= True)
+#data.head()
+
+#data.describe()  """To look the entire Datasets overall characteristics"""
+
+#data.isnull().sum()  """To look the no. of values which are not present in the each columns"""
+
+
+"""We have found multiple NAN values AKA not a number in the Age column so we are gonna fill the empty 
+   cells in Age with mean value of entire Age column"""
+
+mean= data.Age.mean()
+def fill(age):
+  if math.isnan(age):
+    return mean
+  else:
+    return age
+
+data['Age']= data.apply(lambda row: fill(row['Age']),axis=1)
+
+
+data.isnull().sum()
+
+"""As we have filled the column with major empty cells we are gonna remove the rows with minor missing values"""
+
+data=data.dropna()
+
+#sns.boxplot(y=data['Fare'])  """To look the distribution of data in Fare column"""
+
+"""We have found some outliers (i.e)the value which is way small or way big to cause the dataset sqewed.
+   so we will be remob=ving the outliers """
+
+index=data[data['Fare']>450].index
+data.drop(index,axis=0,inplace=True)
+
+"""Here we will be loooking the relation between the survival rate based on the each column"""
+
+#sns.countplot(x=data['Sex'],hue=data['Survived'])
+
+#sns.countplot(x=data['Embarked'],hue=data['Survived'])
+
+#sns.countplot(x=data['Pclass'],hue=data['Survived'])
+
+#sns.countplot(x=data['SibSp'],hue=data['Survived'])
+
+#data.corr()  """To visualise the relation between each column with other columns"""
+
+
+"""Now we are gonna convert all the categorical data into integers which represents those 
+categorical data in order to process the dataset"""
+
+def change_sex(sex):
+    if sex == "male":
+        return 1
+    elif sex == "female":
+        return 0
+
+data['Sex']=data.apply(lambda row: change_sex(row['Sex']),axis=1)
+
+def change_em(em):
+    if em == "S":
+        return 0
+    elif em == "C":
+        return 1
+    elif em == "Q":
+        return 2
+
+data['Embarked']=data.apply(lambda row: change_em(row['Embarked']),axis=1)
+
+"""Now we are gonna split the dataset so that the target column SURVIVED is stored in diff variable 
+   and the remaining data is contained in one variable in order for the model to do the calculations"""
+   
+x=data.drop(['Survived'],axis=1)
+y=data['Survived']
+
+"""Then the entire data set is split into two with specific ratio so that one part is used for training the model
+   and the other part is used for testing the model"""
+   
+from sklearn.model_selection import train_test_split
+x_train,x_test,y_train,y_test= train_test_split(x,y,test_size=0.25)
+
+from sklearn.linear_model import LogisticRegression
+ln=LogisticRegression()
+ln.fit(x_train,y_train)
+
+
+y_pred= ln.predict(x_test)
+y_pred
+
+from sklearn.metrics import accuracy_score, confusion_matrix, classification_report, plot_confusion_matrix
+
+accuracy_score(y_test,y_pred)
+
+
+
+"""As we have finished training the model no we have to do the same cleaning of the dataset for testing dataset
+   so that we can use the dataset for the model to predict values on new dataset"""
+   
+   
+testdata=pd.read_csv('test.csv')
+
+
+#testdata.isnull().sum()
+
+testdata.drop(['PassengerId','Name','Ticket','Cabin'],axis=1,inplace=True)
+#testdata.head()
+
+meanage=testdata['Age'].mean()
+#print(meanage)
+
+def fillage(Age):
+  if math.isnan (Age):
+    return meanage
+  else:
+    return Age
+
+testdata['Age']=testdata.apply(lambda row: fillage(row['Age']),axis=1)
+
+#testdata.isnull().sum()
+
+testdata=testdata.fillna(9)
+
+#testdata.isnull().sum()
+
+#testdata.head()
+
+testdata['Sex']=testdata.apply(lambda row: change_sex(row['Sex']),axis=1)
+testdata['Embarked']=testdata.apply(lambda row: change_em(row['Embarked']),axis=1)
+
+
+y_final= ln.predict(testdata)
+y_final
+
+cmp= pd.read_csv('gender_submission.csv')
+#cmp.head()
+
+y_cmp=cmp.drop(['PassengerId'],axis=1)
+
+accuracy_score(y_cmp,y_final)
+
+from sklearn.neighbors import KNeighborsClassifier
+score=[]
+for i in range(1,30):
+  knn= KNeighborsClassifier(n_neighbors=i)
+  knn.fit(x_train,y_train)
+  y_pred_knn=knn.predict(x_test)
+  knnscore=1-accuracy_score(y_test,y_pred_knn)
+  score.append(knnscore)
+
+minindex=score.index(min(score))
+print(minindex)
+
+sns.lineplot(x=range(1,30),y=score)
+
+
+from sklearn.preprocessing import StandardScaler
+from sklearn.pipeline import Pipeline
+sc=StandardScaler()
+knn_model=KNeighborsClassifier()
+
+
+operations=[('Scaler',sc),('KNN',knn_model)]
+pipe= Pipeline(operations)
+
+from sklearn.model_selection import GridSearchCV
+k_values=list(range(1,30))
+param_grid= {'KNN__n_neighbors': k_values}
+
+cv_class=GridSearchCV(pipe,param_grid=param_grid,scoring='accuracy')
+cv_class.fit(x_train,y_train)
+cv_class.best_estimator_.get_params()
+
+knn5=KNeighborsClassifier(n_neighbors=5)
+knn5.fit(x_train,y_train)
+k5=knn5.predict(x_test)
+
+knn11=KNeighborsClassifier(n_neighbors=11)
+knn11.fit(x_train,y_train)
+k11=knn11.predict(x_test)
+
+print(accuracy_score(y_test,k5))
+print(accuracy_score(y_test,k11))
+
+knn_final=knn11.predict(testdata)
+accuracy_score(y_cmp,knn_final)
