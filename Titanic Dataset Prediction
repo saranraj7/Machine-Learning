@@ -139,12 +139,17 @@ testdata['Embarked']=testdata.apply(lambda row: change_em(row['Embarked']),axis=
 y_final= ln.predict(testdata)
 y_final
 
+# Now i am gonna compare my prediction to the original values.
+
 cmp= pd.read_csv('gender_submission.csv')
 #cmp.head()
 
 y_cmp=cmp.drop(['PassengerId'],axis=1)
 
 accuracy_score(y_cmp,y_final)
+
+# Now we will be using another model for the same data for getting better accuraccy 
+so i am gonna use KNN model
 
 from sklearn.neighbors import KNeighborsClassifier
 score=[]
