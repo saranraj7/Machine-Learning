@@ -1,0 +1,188 @@
+import numpy as np 
+import pandas as pd
+import matplotlib.pyplot as plt
+import seaborn as sns
+from scipy.stats import norm
+from sklearn.model_selection import train_test_split
+from sklearn.linear_model import LinearRegression
+from sklearn import metrics
+from sklearn.preprocessing import PolynomialFeatures
+from sklearn.preprocessing import PolynomialFeatures
+from sklearn.preprocessing import StandardScaler
+from sklearn.linear_model import Ridge
+
+
+df=pd.read_csv("train.csv")
+
+# now we are gonna do the data overview
+df.head()
+df.info()
+df.shape
+
+# now we are gonna check whether there is missing data in our dataframe
+df.isnull().sum().sort_values()
+
+#percentage of the missing value per column
+100*(df.isnull().sum()/len(df)).sort_values()
+
+def missing_percent(df):
+    nan_percent= 100*(df.isnull().sum()/len(df))
+    nan_percent= nan_percent[nan_percent>0].sort_values()
+    return nan_percent
+    
+nan_percent= missing_percent(df)
+nan_percent
+
+""" lets see the grapgical representation of the missing value"""
+plt.figure(figsize=(12,6),dpi=200)
+sns.barplot(x=nan_percent.index,y=nan_percent)
+plt.xticks(rotation=90)
+
+"""now we will be removing the rows of the column which has very less null value percent
+and filling in the columns with mean value if the columns has 10 to 20 percent and if the most 
+of the values in the column has null values then we will be removing the columns"""
+
+""" If you have any categorical column which is in int type then convert it into object type"""
+
+"""Now we will be creating dummies for the object type since we cannot deal with the string data type in ML""""
+
+df.select_dtypes(include='object')
+df_num= df.select_dtypes(exclude='object')
+df_obj= df.select_dtypes(include='object')
+df_obj= pd.get_dummies(df_obj, drop_first=True)
+
+Final_df= pd.concat([df_num, df_obj], axis=1)
+Final_df.head()
+
+plt.figure(figsize=(12,6))
+sns.displot(Final_df['SalePrice'])
+plt.figure(figsize=(12,6))
+sns.displot(Final_df['SalePrice'],color='purple',bins=50)
+plt.axvline(x=(Final_df['SalePrice'].mean()), color='r')
+
+""" we can see that the data is left scewed which can affect the overall model so we are normalise the data"""
+
+Final_df['SalePrice'] = np.log1p(Final_df['SalePrice'])
+
+""" now our data is ready for machine learning model"""
+
+X=Final_df.drop('SalePrice',axis=1)
+y=Final_df['SalePrice']
+
+X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.3, random_state=101)
+
+model=LinearRegression()
+model.fit(X_train, y_train)
+pd.DataFrame(model.coef_ , X.columns ,columns=['coefcient'])
+
+y_pred= model.predict(X_test)
+pd.DataFrame({'Y_Test': y_test,'Y_Pred':y_pred})[:5] # It will show us the first five predicted value with the original value
+
+"""Now we will the evaluate the model with different methods tofind that the model is a best fit"""
+
+MAE_linear=metrics.mean_absolute_error(y_test , y_pred)
+MSE_linear=metrics.mean_squared_error(y_test , y_pred)
+RMSE_linear=np.sqrt(MSE_linear)
+pd.DataFrame([MAE_linear,MSE_linear,RMSE_linear], index=['MAE_linear','MSE_linear','RMSE_linear'],columns=['Quantity'])
+
+""" Lets use another model to find the better accuracy we will be using polynomial regresssion model"""
+
+polynomial_converter=PolynomialFeatures(degree=2, include_bias=False)
+poly_features=polynomial_converter.fit(X)
+poly_features=polynomial_converter.transform(X)
+
+X_train, X_test, y_train, y_test = train_test_split(poly_features, y, test_size=0.3, random_state=101)
+
+polymodel=LinearRegression()
+polymodel.fit(X_train, y_train)
+
+y_pred=polymodel.predict(X_test)
+pd.DataFrame({'Y_Test': y_test,'Y_Pred':y_pred, 'Residuals':(y_test-y_pred) }).head(5)
+
+"""lets evaluate the model"""
+
+MAE_Poly = metrics.mean_absolute_error(y_test,y_pred)
+MSE_Poly = metrics.mean_squared_error(y_test,y_pred)
+RMSE_Poly = np.sqrt(MSE_Poly)
+
+pd.DataFrame([MAE_Poly, MSE_Poly, RMSE_Poly], index=['MAE_Poly', 'MSE_Poly', 'RMSE_Poly'], columns=['metrics'])
+
+""" Now lets covert the data into polynomial data"""
+train_RMSE_list=[]
+
+test_RMSE_list=[]  #Test List of RMSE per degree
+
+for d in range(1,3):
+    
+    #Preprocessing
+    #create poly data set for degree (d)
+    polynomial_converter= PolynomialFeatures(degree=d, include_bias=False)
+    poly_features= polynomial_converter.fit(X)
+    poly_features= polynomial_converter.transform(X)
+    
+    #Split the dataset
+    X_train, X_test, y_train, y_test = train_test_split(poly_features, y, test_size=0.3, random_state=101)
+    
+    #Train the Model
+    polymodel=LinearRegression()
+    polymodel.fit(X_train, y_train)
+    
+    #Predicting on both Train & Test Data
+    y_train_pred=polymodel.predict(X_train)
+    y_test_pred=polymodel.predict(X_test)
+
+    #Evaluating the model
+    #RMSE of Train set
+    train_RMSE=np.sqrt(metrics.mean_squared_error(y_train, y_train_pred))
+    
+    #RMSE of Test Set
+    test_RMSE=np.sqrt(metrics.mean_squared_error(y_test, y_test_pred))
+    
+    #Append the RMSE to the Train and Test List
+    
+    train_RMSE_list.append(train_RMSE)
+    test_RMSE_list.append(test_RMSE)
+    
+#Plot the Polynomial degree VS RMSE
+
+plt.plot(range(1,3), train_RMSE_list[:13], label='Train RMSE')
+plt.plot(range(1,3), test_RMSE_list[:13], label='Test RMSE')
+
+plt.xlabel('Polynomial Degree')
+plt.ylabel('RMSE')
+plt.legend()
+
+polynomial_converter= PolynomialFeatures(degree=1, include_bias=False)
+poly_features= polynomial_converter.fit_transform(X)
+
+X_train, X_test, y_train, y_test = train_test_split(poly_features, y, test_size=0.3, random_state=101)
+scaler= StandardScaler()
+scaler.fit(X_train)
+X_train= scaler.transform(X_train)
+X_test= scaler.transform(X_test)
+
+#Now we will use Ridge model for training the data
+ridge_model= Ridge(alpha=10)
+ridge_model.fit(X_train, y_train)
+
+y_pred= ridge_model.predict(X_test)
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
